@@ -1,75 +1,70 @@
 name: Generate Forecast JSON
 
+# ❶ 触发条件
 on:
-  workflow_dispatch:
+  workflow_dispatch:             # 手动点 Run workflow
     inputs:
       lat:
-        description: "纬度"
-        required: true
+        description: "Latitude"
+        required: false
         default: "22.54691"
       lon:
-        description: "经度"
-        required: true
+        description: "Longitude"
+        required: false
         default: "114.56853"
       date:
-        description: "日期 YYYY-MM-DD（当地时区）"
-        required: true
-        default: "2025-07-27"
-      event:
-        description: "sunrise or sunset"
-        required: true
-        default: "sunrise"
-      name:
-        description: "地点名"
-        required: true
-        default: "大鹏半岛·杨梅坑"
-  schedule:
-    - cron: "30 21 * * *"  # UTC 21:30 = 北京 05:30，每天跑一次（可改多行分别跑日落/日出）
+        description: "Date (YYYY-MM-DD), empty=today/tomorrow auto"
+        required: false
+        default: ""
+  schedule:                      # 每天 05:30 北京时间 = 21:30 UTC 前一天
+    - cron: "30 21 * * *"
 
+  # 如果你还想在改后端脚本时自动跑，就加 paths 过滤：
+  push:
+    paths:
+      - "backend/**"
+      - "config.yaml"
+      - ".github/workflows/run_forecast.yml"
+
+# ❷ 必要写权限（要把生成的 JSON push 回仓库）
 permissions:
   contents: write
 
+concurrency:
+  group: forecast-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  gen:
+  forecast:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - run: pip install -r backend/requirements.txt
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
 
-    - name: Generate JSON
-      env:
-        MB_API_KEY: ${{ secrets.MB_API_KEY }}   # 如果你有 meteoblue key
-      run: |
-        set -e
-        LAT="${{ github.event.inputs.lat || '22.54691' }}"
-        LON="${{ github.event.inputs.lon || '114.56853' }}"
-        DATE_IN="${{ github.event.inputs.date || '' }}"
-        EVENT="${{ github.event.inputs.event || 'sunrise' }}"
-        PLACE="${{ github.event.inputs.name || '大鹏半岛·杨梅坑' }}"
+      - name: Run generator
+        env:
+          MB_API_KEY: ${{ secrets.MB_API_KEY }}   # 有就用，没有也不报错
+        run: |
+          mkdir -p data/requests
+          python backend/generate_forecast.py \
+            --lat "${{ github.event.inputs.lat || '22.54691' }}" \
+            --lon "${{ github.event.inputs.lon || '114.56853' }}" \
+            --date "${{ github.event.inputs.date || '' }}"
 
-        if [ -z "$DATE_IN" ]; then
-          # 定时任务默认取“今天”或“明天”，这里给出例子取明天（根据需要改）
-          DATE_IN=$(TZ="Asia/Shanghai" date "+%Y-%m-%d")
-        fi
-
-        OUTDIR="data/requests"
-        mkdir -p "$OUTDIR"
-        OUTFILE="$OUTDIR/${DATE_IN}_${EVENT}_${LAT}_${LON}.json"
-
-        python backend/generate_forecast.py \
-          --lat "$LAT" --lon "$LON" \
-          --date "$DATE_IN" --event "$EVENT" \
-          --name "$PLACE" --out "$OUTFILE"
-
-    - name: Commit result
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add data/requests
-        git commit -m "Add forecast json $(date '+%F %T')" || echo "no changes"
-        git push
+      - name: Commit & push JSON
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/requests/*.json || echo "no json"
+          git commit -m "Update forecast $(date -u '+%F %T UTC')" || exit 0
+          git push
