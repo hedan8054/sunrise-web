@@ -1,1 +1,6 @@
-
+__pycache__/
+*.pyc
+*.log
+logs/
+out/
+.env
