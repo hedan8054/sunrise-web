@@ -1,1 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>日出/日落预报查看器</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>日出 / 日落 预报结果</h1>
 
+  <section id="controls">
+    <label>仓库拥有者: <input id="owner" value="你的GitHub用户名"></label>
+    <label>仓库名: <input id="repo" value="你的Repo名"></label>
+    <button id="loadList">加载结果列表</button>
+  </section>
+
+  <section id="files">
+    <h2>结果文件列表（data/requests）</h2>
+    <ul id="fileList"></ul>
+  </section>
+
+  <section id="viewer" style="display:none;">
+    <h2>结果预览</h2>
+    <pre id="jsonRaw"></pre>
+    <h3>场景描述</h3>
+    <pre id="sceneText"></pre>
+    <h3>详细评分</h3>
+    <pre id="detailText"></pre>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
