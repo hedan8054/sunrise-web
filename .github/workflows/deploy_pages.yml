@@ -1,15 +1,18 @@
 name: Deploy Frontend to Pages
+
 on:
   push:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'data/requests/**'
       - '.github/workflows/deploy_pages.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  pages: write      # 关键
+  id-token: write   # 关键
 
 concurrency:
   group: "pages"
@@ -17,12 +20,25 @@ concurrency:
 
 jobs:
   deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v2
-      with:
-        path: frontend
-    - name: Deploy to GitHub Pages
-      uses: actions/deploy-pages@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 若前端需要用到 data/requests，拷到前端目录
+      - name: Copy data to frontend
+        run: |
+          mkdir -p frontend/data/requests
+          cp -r data/requests/* frontend/data/requests/ || true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend    # 你的 index.html、app.js、style.css 在这里
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
